@@ -11,6 +11,6 @@ Prequisites:
 - A "bookstack" namespace
 - A traefik ingress controller
 - Create the configmap "config-configmap" from the file ./env:
-$ kubectl create configmap config-configmap -n bookstack --from-file=.env=env
+$ kubectl create configmap config-configmap -n bookstack --from-file=.env=bookstack.env
 - Create the configmap "bookstack-configmap" from the file ./db-config:
-$ kubectl create configmap bookstack-configmap -n bookstack --from-env-file=db-config
+$ kubectl create configmap bookstack-configmap -n bookstack --from-env-file=db.env
