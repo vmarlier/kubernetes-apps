@@ -1,0 +1,129 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: bookstack-ingressroute
+  labels:
+    app: bookstack
+  namespace: bookstack
+spec:
+  routes:
+  - kind: Rule
+    match: Host(`wiki.test.com`)
+    services:
+    - kind: Service
+      name: bookstack-svc
+      port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bookstack-svc
+  labels:
+    app: bookstack
+  namespace: bookstack
+spec:
+  selector:
+    app: bookstack
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: bookstack-deployment
+  labels:
+    app: bookstack
+  namespace: bookstack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bookstack
+  template:
+    metadata:
+      labels:
+        app: bookstack
+      namespace: bookstack
+    spec: 
+      restartPolicy: Always
+      volumes:
+      - name: public-uploads
+        persistentVolumeClaim:
+          claimName: public-uploads-pvc
+      - name: storage-uploads
+        persistentVolumeClaim:
+          claimName: storage-uploads-pvc
+      - name: config
+        configMap:
+          name: config-configmap
+          items:
+          - key: .env
+            path: .env
+      containers:
+      - image: solidnerd/bookstack:0.30.4
+        name: bookstack
+        ports:
+        - name: web
+          containerPort: 8080
+          protocol: TCP
+        volumeMounts:
+        - name: public-uploads
+          mountPath: "/var/www/bookstack/public/uploads"
+        - name: storage-uploads
+          mountPath: "/var/www/bookstack/storage/uploads"
+        - name: config
+          mountPath: /var/www/bookstack/.env
+          subPath: .env
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: bookstack-configmap
+              key: DB_HOST
+        - name: DB_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: bookstack-configmap
+              key: DB_DATABASE
+        - name: DB_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: bookstack-configmap
+              key: DB_USERNAME
+        - name: DB_PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: bookstack-configmap
+              key: DB_PASSWORD
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: public-uploads-pvc
+  labels:
+    app: bookstack
+  namespace: bookstack
+spec:
+  storageClassName: scw-bssd
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: storage-uploads-pvc
+  labels:
+    app: bookstack
+  namespace: bookstack
+spec:
+  storageClassName: scw-bssd
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
