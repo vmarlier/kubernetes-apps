@@ -1,25 +1,38 @@
 apiVersion: traefik.containo.us/v1alpha1
 kind: IngressRoute
 metadata:
-  name: bookstack-ingressroute
+  name: wbs-bookstack-https-ingressroute
   labels:
     app: bookstack
+    environment: dev
+    resourceType: ingressroute
   namespace: bookstack
 spec:
+  entrypoint:
+    - websecure
   routes:
   - kind: Rule
-    match: Host(`wiki.test.com`)
+    match: Host(`wiki.test.com`) && PathPrefix(`/`)
     services:
     - kind: Service
-      name: bookstack-svc
+      name: wbs-bookstack-service
       port: 80
+      scheme: https
+  tls:
+    secretName: traefik-cert
+    option:
+    - namespace: bookstack
+    domain:
+    - main: test.com
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: bookstack-svc
+  name: wbs-bookstack-service
   labels:
     app: bookstack
+    environment: dev
+    resourceType: service
   namespace: bookstack
 spec:
   selector:
@@ -32,9 +45,11 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata: 
-  name: bookstack-deployment
+  name: wbs-bookstack-deployment
   labels:
     app: bookstack
+    environment: dev
+    resourceType: deployment
   namespace: bookstack
 spec:
   replicas: 1
@@ -45,25 +60,30 @@ spec:
     metadata:
       labels:
         app: bookstack
+        environment: dev
+        resourceType: pod
       namespace: bookstack
     spec: 
+      nodeSelector:
+        k8s.scaleway.com/pool-name: default
       restartPolicy: Always
       volumes:
       - name: public-uploads
         persistentVolumeClaim:
-          claimName: public-uploads-pvc
+          claimName: wbs-bookstack-public-uploads-pvc
       - name: storage-uploads
         persistentVolumeClaim:
-          claimName: storage-uploads-pvc
+          claimName: wbs-bookstack-storage-uploads-pvc
       - name: config
         configMap:
-          name: config-configmap
+          name: wbs-bookstack-config-configmap
           items:
           - key: .env
             path: .env
       containers:
       - image: solidnerd/bookstack:0.30.4
         name: bookstack
+        #command: [/bin/sh, -c, "tail -f /var/log"]
         ports:
         - name: web
           containerPort: 8080
@@ -80,30 +100,32 @@ spec:
         - name: DB_HOST
           valueFrom:
             configMapKeyRef:
-              name: bookstack-configmap
+              name: wbs-bookstack-db-env-configmap
               key: DB_HOST
         - name: DB_DATABASE
           valueFrom:
             configMapKeyRef:
-              name: bookstack-configmap
+              name: wbs-bookstack-db-env-configmap
               key: DB_DATABASE
         - name: DB_USERNAME
           valueFrom:
             configMapKeyRef:
-              name: bookstack-configmap
+              name: wbs-bookstack-db-env-configmap
               key: DB_USERNAME
         - name: DB_PASSWORD
           valueFrom:
             configMapKeyRef:
-              name: bookstack-configmap
+              name: wbs-bookstack-db-env-configmap
               key: DB_PASSWORD
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: public-uploads-pvc
+  name: wbs-bookstack-public-uploads-pvc
   labels:
     app: bookstack
+    environment: dev
+    resourceType: persistentVolumeClaim
   namespace: bookstack
 spec:
   storageClassName: scw-bssd
@@ -116,9 +138,11 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: storage-uploads-pvc
+  name: wbs-bookstack-storage-uploads-pvc
   labels:
     app: bookstack
+    environment: dev
+    resourceType: persistentVolumeClaim
   namespace: bookstack
 spec:
   storageClassName: scw-bssd
