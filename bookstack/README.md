@@ -9,8 +9,7 @@ Prequisites:
 
 - A traefik ingress controller
 
-- Create the configmap "wbs-bookstack-config-configmap" from the file ./bookstack.env:
-$ kubectl create configmap wbs-bookstack-config-configmap -n bookstack --from-file=.env=bookstack.env
+- Update the configmap in ./bookstack.yml if you want to update the .env file
 
-- Create the configmap "wbs-bookstack-db-env-configmap" from the file ./db.env:
-$ kubectl create configmap wbs-bookstack-db-env-configmap -n bookstack --from-env-file=db.env
+- Create the configmap "wbs-bookstack-db-env-secret" from the file ./db.env:
+$ kubectl create secret generic bookstack-db-env-secret -n bookstack --from-env-file=db.env

@@ -1,7 +1,7 @@
 apiVersion: traefik.containo.us/v1alpha1
 kind: IngressRoute
 metadata:
-  name: wbs-bookstack-https-ingressroute
+  name: bookstack-https-ingressroute
   labels:
     app: bookstack
     environment: dev
@@ -15,9 +15,8 @@ spec:
     match: Host(`wiki.test.com`) && PathPrefix(`/`)
     services:
     - kind: Service
-      name: wbs-bookstack-service
+      name: bookstack-service
       port: 80
-      scheme: https
   tls:
     secretName: traefik-cert
     option:
@@ -28,7 +27,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: wbs-bookstack-service
+  name: bookstack-service
   labels:
     app: bookstack
     environment: dev
@@ -45,7 +44,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata: 
-  name: wbs-bookstack-deployment
+  name: bookstack-deployment
   labels:
     app: bookstack
     environment: dev
@@ -68,27 +67,47 @@ spec:
         k8s.scaleway.com/pool-name: default
       restartPolicy: Always
       volumes:
+      - name: log
+        emptyDir: {}
       - name: public-uploads
         persistentVolumeClaim:
-          claimName: wbs-bookstack-public-uploads-pvc
+          claimName: bookstack-public-uploads-pvc
       - name: storage-uploads
         persistentVolumeClaim:
-          claimName: wbs-bookstack-storage-uploads-pvc
+          claimName: bookstack-storage-uploads-pvc
       - name: config
         configMap:
-          name: wbs-bookstack-config-configmap
+          name: bookstack-config-configmap
           items:
           - key: .env
             path: .env
+      initContainers:
+      - image: busybox
+        name: fix-permissions
+        command: ["chmod", "-R", "777", "/var/www/bookstack"]
+        volumeMounts:
+        - name: public-uploads
+          mountPath: "/var/www/bookstack/public/uploads"
+        - name: storage-uploads
+          mountPath: "/var/www/bookstack/storage/uploads"
       containers:
       - image: solidnerd/bookstack:0.30.4
         name: bookstack
-        #command: [/bin/sh, -c, "tail -f /var/log"]
         ports:
         - name: web
           containerPort: 8080
           protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
         volumeMounts:
+        - name: log
+          mountPath: /var/log/apache2
         - name: public-uploads
           mountPath: "/var/www/bookstack/public/uploads"
         - name: storage-uploads
@@ -97,31 +116,64 @@ spec:
           mountPath: /var/www/bookstack/.env
           subPath: .env
         env:
+        - name: TZ
+          value: "Europe/Paris"
         - name: DB_HOST
           valueFrom:
-            configMapKeyRef:
-              name: wbs-bookstack-db-env-configmap
+            secretKeyRef:
+              name: bookstack-db-env-secret
               key: DB_HOST
         - name: DB_DATABASE
           valueFrom:
-            configMapKeyRef:
-              name: wbs-bookstack-db-env-configmap
+            secretKeyRef:
+              name: bookstack-db-env-secret
               key: DB_DATABASE
         - name: DB_USERNAME
           valueFrom:
-            configMapKeyRef:
-              name: wbs-bookstack-db-env-configmap
+            secretKeyRef:
+              name: bookstack-db-env-secret
               key: DB_USERNAME
         - name: DB_PASSWORD
           valueFrom:
-            configMapKeyRef:
-              name: wbs-bookstack-db-env-configmap
+            secretKeyRef:
+              name: bookstack-db-env-secret
               key: DB_PASSWORD
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bookstack-config-configmap
+  labels:
+    app: bookstack
+    environment: dev
+    resourceType: persistentVolumeClaim
+  namespace: bookstack
+data:
+  .env: |
+    APP_LANG=fr
+    APP_URL=https://wiki.test.com
+    # Only send cookies over a HTTPS connection. Ensure you have BookStack served over HTTPS before enabling.
+    SESSION_SECURE_COOKIE=true
+    APP_DEBUG=true
+    ## MAIL CONFIG ##
+    #################
+    #MAIL_DRIVER=smtp
+    # Host, Port & Encryption mechanism to use
+    #MAIL_HOST=smtp.provider.tld
+    #MAIL_PORT=465
+    #MAIL_ENCRYPTION=tls
+    # Authentication details for your SMTP service
+    #MAIL_USERNAME=user@provider.tld
+    #MAIL_PASSWORD=onlyifneeded
+    # The "from" email address for outgoing email
+    #MAIL_FROM=noreply@yourdomain.tld  
+    # The "from" name used for outgoing email
+    #MAIL_FROM_NAME=BookStack
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: wbs-bookstack-public-uploads-pvc
+  name: bookstack-public-uploads-pvc
   labels:
     app: bookstack
     environment: dev
@@ -138,7 +190,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: wbs-bookstack-storage-uploads-pvc
+  name: bookstack-storage-uploads-pvc
   labels:
     app: bookstack
     environment: dev
